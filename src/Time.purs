@@ -30,6 +30,11 @@ foreign import getNow_f
 getNow :: Effect Instant
 getNow = getNow_f \millis -> Instant { millis }
 
+foreign import prettifyMillis :: Number -> String
+
+instance Pretty Instant where
+  pretty (Instant { millis }) = prettifyMillis millis
+
 newtype Minutes = Minutes Int
 
 derive instance Generic Minutes _

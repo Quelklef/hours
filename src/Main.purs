@@ -5,7 +5,9 @@ import Prelude
 import Effect (Effect)
 import Effect.Class.Console (log)
 import Effect.Exception (throw)
+import Data.Foldable (intercalate)
 import Data.Array as Array
+import Data.Map as Map
 import Data.Either (Either(..))
 import Options.Applicative.Extra (execParser)
 import Data.Bifunctor (lmap)
@@ -33,20 +35,25 @@ main = do
 
   journal <- readJournal journalLoc
 
-  journal' <- case cmd of
-    Cmd_Status -> pure journal
+  case cmd of
+    Cmd_Status -> do
+      (appState :: AppState) <- simulate journal # throwLeft "simulating"
+      log $ pretty appState
+
+    Cmd_History -> do
+      log $ journal # map pretty # intercalate "\n\n"
+
     Cmd_Append mkEvent -> do
       now <- getNow
       let event = mkEvent { now }
-      pure $ Array.snoc journal event
-
-  case simulate journal' of
-    Left err -> do
-      log err
-      exit 1
-    Right appState -> do
-      log $ pretty (appState :: AppState)
-      writeJournal journalLoc journal'
+      let journal' = Array.snoc journal event
+      case simulate journal' of
+        Left err -> do
+          log err
+          exit 1
+        Right appState -> do
+          log $ pretty (appState :: AppState)
+          writeJournal journalLoc journal'
 
   where
 
