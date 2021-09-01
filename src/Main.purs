@@ -36,7 +36,7 @@ main = do
   case cmd of
     Cmd_Status -> do
       app <- simulate journal # throwLeft "simulating"
-      log $ prettifyApp app
+      log =<< prettifyApp app
 
     Cmd_History -> do
       log $ journal # map prettifyEvent # intercalate "\n\n"
@@ -50,7 +50,7 @@ main = do
           log err
           exit 1
         Right app -> do
-          log $ prettifyApp app
+          log =<< prettifyApp app
           writeJournal journalLoc journal'
 
   where

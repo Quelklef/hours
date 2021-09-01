@@ -2,7 +2,8 @@ module Hours.Prettify (prettifyApp, prettifyEvent) where
 
 import Prelude
 
-import Data.Maybe (Maybe(..), isJust, fromMaybe)
+import Effect (Effect)
+import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Map as Map
 import Data.Foldable (class Foldable, fold, foldMap, length)
 import Data.String.CodeUnits (length) as Str
@@ -13,7 +14,7 @@ import Data.Array as Array
 import Data.Newtype (un)
 import Data.Tuple.Nested ((/\))
 
-import Hours.Time (Instant, asMilliseconds, Minutes(..))
+import Hours.Time (Instant, asMilliseconds, Minutes(..), getNow, minutesBetween)
 import Hours.Types (Event(..), EventPayload(..), App(..))
 
 prettifyInstant :: Instant -> String
@@ -47,19 +48,24 @@ prettifyEvent (Event event) = fold
     EventPayload_WorkStop { topicName } -> "Finished work on " <> topicName
     EventPayload_Billed { topicName } -> "Billed " <> topicName
 
-prettifyApp :: App -> String
-prettifyApp (App app) =
+prettifyApp :: App -> Effect String
+prettifyApp (App app) = do
   if Map.isEmpty app.topics
-  then "Nothing to see here"
-  else renderBox ["Topic", "Total", "Unbilled"] $
-    app.topics
-    # Map.values
-    # map (\topic ->
-      [ topic.name <> (if isJust topic.activeWork then "*" else " ")
-      , prettifyMinutes topic.workedTotal
-      , prettifyMinutes topic.workedUnbilled
-      ])
-    # fromFoldable
+  then pure "Nothing to see here"
+  else do
+    now <- getNow
+    pure $ renderBox ["Topic", "Current", "Logged", "Unbilled"] $
+      app.topics
+      # Map.values
+      # map (\topic ->
+        [ topic.name
+        , case topic.activeWork of
+            Nothing -> ""
+            Just { started } -> prettifyMinutes $ minutesBetween started now
+        , prettifyMinutes topic.workedTotal
+        , prettifyMinutes topic.workedUnbilled
+        ])
+      # fromFoldable
 
 -- Render an array of rows
 renderBox :: Array String -> Array (Array String) -> String
