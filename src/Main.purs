@@ -24,7 +24,7 @@ import Hours.Clargs (cli, Clargs(..), Cmd(..))
 import Hours.Types (Journal)
 import Hours.Time (getNow)
 import Hours.Simulate (simulate)
-import Hours.Pretty (pretty)
+import Hours.Prettify (prettifyApp, prettifyEvent)
 
 main :: Effect Unit
 main = do
@@ -36,10 +36,10 @@ main = do
   case cmd of
     Cmd_Status -> do
       app <- simulate journal # throwLeft "simulating"
-      log $ pretty app
+      log $ prettifyApp app
 
     Cmd_History -> do
-      log $ journal # map pretty # intercalate "\n\n"
+      log $ journal # map prettifyEvent # intercalate "\n\n"
 
     Cmd_Append mkEvent -> do
       now <- getNow
@@ -50,7 +50,7 @@ main = do
           log err
           exit 1
         Right app -> do
-          log $ pretty app
+          log $ prettifyApp app
           writeJournal journalLoc journal'
 
   where

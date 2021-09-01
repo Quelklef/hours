@@ -1,4 +1,4 @@
-module Hours.Pretty (class Pretty, pretty) where
+module Hours.Prettify (prettifyApp, prettifyEvent) where
 
 import Prelude
 
@@ -16,51 +16,50 @@ import Data.Tuple.Nested ((/\))
 import Hours.Time (Instant, asMilliseconds, Minutes(..))
 import Hours.Types (Event(..), EventPayload(..), App(..))
 
-class Pretty a where
-  pretty :: a -> String
-
-instance Pretty Instant where
-  pretty = asMilliseconds >>> prettifyMillis
+prettifyInstant :: Instant -> String
+prettifyInstant = asMilliseconds >>> prettifyMillis
 
 foreign import prettifyMillis :: Number -> String
 
-instance Pretty Minutes where
-  pretty (Minutes n) =
-    let hours = n `div` 60
-        minutes = n `mod` 60
-    in show hours <> "h " <> show minutes <> "m"
+prettifyMinutes :: Minutes -> String
+prettifyMinutes (Minutes n) =
+  let hours = n `div` 60
+      minutes = n `mod` 60
+  in show hours <> "h " <> show minutes <> "m"
 
-instance Pretty Event where
-  pretty (Event event) = fold
-    [ pretty event.payload
-    , "\n  time: " <> pretty event.timestamp
-    , case event.note of
-      Nothing -> ""
-      Just note -> "\n  note: " <> note
-    ]
+prettifyEvent :: Event -> String
+prettifyEvent (Event event) = fold
+  [ prettifyEventPayload event.payload
+  , "\n  time: " <> prettifyInstant event.timestamp
+  , case event.note of
+    Nothing -> ""
+    Just note -> "\n  note: " <> note
+  ]
 
-instance Pretty EventPayload where
-  pretty = case _ of
+  where
+
+  prettifyEventPayload :: EventPayload -> String
+  prettifyEventPayload = case _ of
     EventPayload_NewTopic { topicName } -> "Created topic " <> topicName
     EventPayload_RetireTopic { topicName } -> "Retired topic " <> topicName
-    EventPayload_LogWork { topicName, amount } -> "Logged " <> pretty amount <> " on topic " <> topicName
+    EventPayload_LogWork { topicName, amount } -> "Logged " <> prettifyMinutes amount <> " on topic " <> topicName
     EventPayload_WorkStart { topicName } -> "Began work on " <> topicName
     EventPayload_WorkStop { topicName } -> "Finished work on " <> topicName
     EventPayload_Billed { topicName } -> "Billed " <> topicName
 
-instance Pretty App where
-  pretty (App app) =
-    if Map.isEmpty app.topics
-    then "Nothing to see here"
-    else renderBox ["Topic", "Total", "Unbilled"] $
-      app.topics
-      # Map.values
-      # map (\topic ->
-        [ topic.name <> (if isJust topic.activeWork then "*" else " ")
-        , pretty topic.workedTotal
-        , pretty topic.workedUnbilled
-        ])
-      # fromFoldable
+prettifyApp :: App -> String
+prettifyApp (App app) =
+  if Map.isEmpty app.topics
+  then "Nothing to see here"
+  else renderBox ["Topic", "Total", "Unbilled"] $
+    app.topics
+    # Map.values
+    # map (\topic ->
+      [ topic.name <> (if isJust topic.activeWork then "*" else " ")
+      , prettifyMinutes topic.workedTotal
+      , prettifyMinutes topic.workedUnbilled
+      ])
+    # fromFoldable
 
 -- Render an array of rows
 renderBox :: Array String -> Array (Array String) -> String
