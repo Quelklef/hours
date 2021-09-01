@@ -20,11 +20,10 @@ import Data.Argonaut.Decode (decodeJson) as A
 import Data.Argonaut.Decode.Error (printJsonDecodeError) as A
 import Data.Argonaut.Encode (encodeJson) as A
 
-import Hours.Gar (simulate)
 import Hours.Clargs (cli, Clargs(..), Cmd(..))
 import Hours.Types (Journal)
 import Hours.Time (getNow)
-import Hours.AppState (AppState)
+import Hours.AppState (AppState, simulate)
 import Hours.Pretty (pretty)
 
 main :: Effect Unit
