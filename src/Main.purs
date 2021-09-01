@@ -21,7 +21,7 @@ import Data.Argonaut.Decode.Error (printJsonDecodeError) as A
 import Data.Argonaut.Encode (encodeJson) as A
 
 import Hours.Clargs (cli, Clargs(..), Cmd(..))
-import Hours.Types (Journal, AppState)
+import Hours.Types (Journal)
 import Hours.Time (getNow)
 import Hours.Simulate (simulate)
 import Hours.Pretty (pretty)
@@ -35,8 +35,8 @@ main = do
 
   case cmd of
     Cmd_Status -> do
-      (appState :: AppState) <- simulate journal # throwLeft "simulating"
-      log $ pretty appState
+      app <- simulate journal # throwLeft "simulating"
+      log $ pretty app
 
     Cmd_History -> do
       log $ journal # map pretty # intercalate "\n\n"
@@ -49,8 +49,8 @@ main = do
         Left err -> do
           log err
           exit 1
-        Right appState -> do
-          log $ pretty (appState :: AppState)
+        Right app -> do
+          log $ pretty app
           writeJournal journalLoc journal'
 
   where

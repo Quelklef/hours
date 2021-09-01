@@ -7,15 +7,19 @@ import Data.Foldable (class Foldable, foldl)
 import Data.Either (Either(..), note)
 import Data.Maybe (Maybe(..))
 
-import Hours.Types (Result, TopicState, Event(..), EventPayload(..), AppState(..))
+import Hours.Types (Result, Event(..), EventPayload(..), Topic, App(..))
 import Hours.Time (Minutes, minutesBetween)
 
-simulate :: forall f. Foldable f => f Event -> Either String AppState
-simulate actions = foldl (\s a -> s >>= execute a) (pure init) actions
-  where init = AppState Map.empty
+simulate :: forall f. Foldable f => f Event -> Result App
+simulate actions = foldl (\s a -> s >>= execute a) (pure app0) actions
 
-mkTopicState :: String -> TopicState
-mkTopicState name =
+app0 :: App
+app0 = App
+  { topics: Map.empty
+  }
+
+mkTopic0 :: String -> Topic
+mkTopic0 name =
   { name
   , workedTotal: mempty
   , workedUnbilled: mempty
@@ -23,47 +27,47 @@ mkTopicState name =
   , isRetired: false
   }
 
-withTopic :: String -> (TopicState -> Result TopicState) -> AppState -> Result AppState
-withTopic topic f (AppState states) = do
-  state <- Map.lookup topic states # note "Topic not found"
-  state' <- f state
-  let states' = Map.insert topic state' states
-  pure (AppState states')
+withTopic :: String -> (Topic -> Result Topic) -> App -> Result App
+withTopic topicName f (App app) = do
+  topic <- Map.lookup topicName app.topics # note "Topic not found"
+  topic' <- f topic
+  let topics' = Map.insert topicName topic' app.topics
+  pure (App $ app { topics = topics' })
 
-execute :: Event -> AppState -> Either String AppState
-execute (Event event) appState@(AppState states) = case event.payload of
+execute :: Event -> App -> Result App
+execute (Event event) (App app) = case event.payload of
 
-  EventPayload_NewTopic { topic } ->
-    if Map.member topic states
+  EventPayload_NewTopic { topicName } ->
+    if Map.member topicName app.topics
     then Left "Topic already exists"
-    else Right $ AppState $ Map.insert topic (mkTopicState topic) states
+    else Right (App $ app { topics = Map.insert topicName (mkTopic0 topicName) app.topics })
 
-  EventPayload_RetireTopic { topic } ->
-    appState # withTopic topic (\s -> pure $ s { isRetired = true })
+  EventPayload_RetireTopic { topicName } ->
+    (App app) # withTopic topicName \topic -> pure $ topic { isRetired = true }
 
-  EventPayload_LogWork { topic, amount } ->
-    appState # withTopic topic
-      \state -> pure $ state { workedTotal = state.workedTotal <> amount
-                             , workedUnbilled = state.workedUnbilled <> amount
+  EventPayload_LogWork { topicName, amount } ->
+    (App app) # withTopic topicName
+      \topic -> pure $ topic { workedTotal = topic.workedTotal <> amount
+                             , workedUnbilled = topic.workedUnbilled <> amount
                              }
 
-  EventPayload_WorkStart { topic } ->
-    appState # withTopic topic \state ->
-      case state.activeWork of
+  EventPayload_WorkStart { topicName } ->
+    (App app) # withTopic topicName \topic ->
+      case topic.activeWork of
         Just _ -> Left "Already have active work for this topic"
-        Nothing -> Right $ state { activeWork = Just { started: event.timestamp } }
+        Nothing -> Right $ topic { activeWork = Just { started: event.timestamp } }
 
-  EventPayload_WorkStop { topic } ->
-    appState # withTopic topic \state ->
-      case state.activeWork of
+  EventPayload_WorkStop { topicName } ->
+    (App app) # withTopic topicName \topic ->
+      case topic.activeWork of
         Nothing -> Left "No active work for this topic"
         Just { started } ->
           let duration = minutesBetween started event.timestamp
-          in Right $ state { activeWork = Nothing
-                           , workedTotal = state.workedTotal <> duration
-                           , workedUnbilled = state.workedUnbilled <> duration
+          in Right $ topic { activeWork = Nothing
+                           , workedTotal = topic.workedTotal <> duration
+                           , workedUnbilled = topic.workedUnbilled <> duration
                            }
 
-  EventPayload_Billed { topic } ->
-    appState # withTopic topic \state ->
-      pure $ state { workedUnbilled = (mempty :: Minutes) }
+  EventPayload_Billed { topicName } ->
+    (App app) # withTopic topicName \topic ->
+      pure $ topic { workedUnbilled = (mempty :: Minutes) }

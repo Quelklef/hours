@@ -28,18 +28,18 @@ instance DecodeJson Event where decodeJson = genericDecodeJson
 instance EncodeJson Event where encodeJson = genericEncodeJson
 
 data EventPayload
-  = EventPayload_NewTopic { topic :: String }
-  | EventPayload_RetireTopic { topic :: String }
-  | EventPayload_LogWork { topic :: String, amount :: Minutes }
-  | EventPayload_WorkStart { topic :: String }
-  | EventPayload_WorkStop { topic :: String }
-  | EventPayload_Billed { topic :: String }
+  = EventPayload_NewTopic { topicName :: String }
+  | EventPayload_RetireTopic { topicName :: String }
+  | EventPayload_LogWork { topicName :: String, amount :: Minutes }
+  | EventPayload_WorkStart { topicName :: String }
+  | EventPayload_WorkStop { topicName :: String }
+  | EventPayload_Billed { topicName :: String }
 
 derive instance Generic EventPayload _
 instance DecodeJson EventPayload where decodeJson = genericDecodeJson
 instance EncodeJson EventPayload where encodeJson = genericEncodeJson
 
-type TopicState =
+type Topic =
   { name :: String
   , workedTotal :: Minutes
   , workedUnbilled :: Minutes
@@ -47,4 +47,6 @@ type TopicState =
   , isRetired :: Boolean
   }
 
-newtype AppState = AppState (Map String TopicState)
+newtype App = App
+  { topics :: Map String Topic
+  }

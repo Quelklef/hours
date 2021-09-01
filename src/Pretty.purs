@@ -14,7 +14,7 @@ import Data.Newtype (un)
 import Data.Tuple.Nested ((/\))
 
 import Hours.Time (Instant, asMilliseconds, Minutes(..))
-import Hours.Types (Event(..), EventPayload(..), AppState(..))
+import Hours.Types (Event(..), EventPayload(..), App(..))
 
 class Pretty a where
   pretty :: a -> String
@@ -41,24 +41,24 @@ instance Pretty Event where
 
 instance Pretty EventPayload where
   pretty = case _ of
-    EventPayload_NewTopic { topic } -> "Created topic " <> topic
-    EventPayload_RetireTopic { topic } -> "Retired topic " <> topic
-    EventPayload_LogWork { topic, amount } -> "Logged " <> pretty amount <> " on topic " <> topic
-    EventPayload_WorkStart { topic } -> "Began work on " <> topic
-    EventPayload_WorkStop { topic } -> "Finished work on " <> topic
-    EventPayload_Billed { topic } -> "Billed " <> topic
+    EventPayload_NewTopic { topicName } -> "Created topic " <> topicName
+    EventPayload_RetireTopic { topicName } -> "Retired topic " <> topicName
+    EventPayload_LogWork { topicName, amount } -> "Logged " <> pretty amount <> " on topic " <> topicName
+    EventPayload_WorkStart { topicName } -> "Began work on " <> topicName
+    EventPayload_WorkStop { topicName } -> "Finished work on " <> topicName
+    EventPayload_Billed { topicName } -> "Billed " <> topicName
 
-instance Pretty AppState where
-  pretty (AppState states) =
-    if Map.isEmpty states
+instance Pretty App where
+  pretty (App app) =
+    if Map.isEmpty app.topics
     then "Nothing to see here"
     else renderBox ["Topic", "Total", "Unbilled"] $
-      states
+      app.topics
       # Map.values
-      # map (\state ->
-        [ state.name <> (if isJust state.activeWork then "*" else " ")
-        , pretty state.workedTotal
-        , pretty state.workedUnbilled
+      # map (\topic ->
+        [ topic.name <> (if isJust topic.activeWork then "*" else " ")
+        , pretty topic.workedTotal
+        , pretty topic.workedUnbilled
         ])
       # fromFoldable
 
