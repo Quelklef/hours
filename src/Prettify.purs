@@ -7,6 +7,8 @@ import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Map as Map
 import Data.Foldable (class Foldable, fold, foldMap, length)
 import Data.String.CodeUnits (length) as Str
+import Data.String.Common (split) as Str
+import Data.String.Pattern (Pattern(..)) as Str
 import Data.Ord.Max (Max(..))
 import Data.Monoid (power)
 import Data.Array (zip, intercalate, fromFoldable)
@@ -54,19 +56,21 @@ prettifyApp (App app) = do
   then pure "Nothing to see here"
   else do
     now <- getNow
-    pure $ renderBox ["Topic", "Current", "Logged", "Unbilled"] $
-      app.topics
-      # Map.values
-      # fromFoldable
-      # Array.filter (\topic -> not topic.isRetired)
-      # map (\topic ->
-        [ topic.name
-        , case topic.activeWork of
-            Nothing -> ""
-            Just { started } -> prettifyMinutes $ minutesBetween started now
-        , prettifyMinutes topic.workedTotal
-        , prettifyMinutes topic.workedUnbilled
-        ])
+    let box =
+          renderBox ["Topic", "Current", "Logged", "Unbilled"] $
+            app.topics
+            # Map.values
+            # fromFoldable
+            # Array.filter (\topic -> not topic.isRetired)
+            # map (\topic ->
+              [ topic.name
+              , case topic.activeWork of
+                  Nothing -> ""
+                  Just { started } -> prettifyMinutes $ minutesBetween started now
+              , prettifyMinutes topic.workedTotal
+              , prettifyMinutes topic.workedUnbilled
+              ])
+    pure $ "\n" <> indent "  " box <> "\n"
 
 -- Render an array of rows
 renderBox :: Array String -> Array (Array String) -> String
@@ -95,3 +99,6 @@ renderBox headers rows =
             # intercalate "┼"
 
   in ([format headers, divider] <> map format rows) # intercalate "\n"
+
+indent :: String -> String -> String
+indent dent = Str.split (Str.Pattern "\n") >>> map (dent <> _) >>> intercalate "\n"
