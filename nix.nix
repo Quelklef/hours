@@ -39,17 +39,6 @@ gitignoreSource =
   };
   in (import src { inherit (pkgs) lib; }).gitignoreSource;
 
-npmlock2nix =
-  let fetched = pkgs.fetchFromGitHub {
-        owner = "tweag";
-        repo = "npmlock2nix";
-        rev = "8ada8945e05b215f3fffbd10111f266ea70bb502";
-        sha256 = "0ni3z64wf1cha7xf5vqzqfqs73qc938zvnnbn147li1m4v8pnzzx";
-      };
-  in import fetched { inherit pkgs; };
-
-node_modules = npmlock2nix.node_modules { src = gitignoreSource ./.; };
-
 in {
 
   deriv = pkgs.stdenv.mkDerivation {
@@ -58,7 +47,7 @@ in {
 
     installPhase = ''
       mkdir -p $out/bin
-      echo "NODE_PATH=${node_modules}/node_modules/ ${pkgs.nodejs}/bin/node ${nixed.modules.Main.bundle {}} \"\$@\"" > $out/bin/hours
+      echo "${pkgs.nodejs}/bin/node ${nixed.modules.Main.bundle {}} \"\$@\"" > $out/bin/hours
       chmod +x $out/bin/hours
     '';
   };
