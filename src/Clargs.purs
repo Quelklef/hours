@@ -19,6 +19,7 @@ data Clargs = Clargs
 data Cmd
   = Cmd_Status
   | Cmd_History
+  | Cmd_Undo
   | Cmd_Append ({ now :: Instant } -> Event)
 
 cli :: O.ParserInfo Clargs
@@ -41,6 +42,7 @@ cli = OB.info (O.helper <*> parser) desc
     cmd <- OB.subparser $ fold
       [ cmd_status
       , cmd_history
+      , cmd_undo
       , cmd_newTopic
       , cmd_retireTopic
       , cmd_logWork
@@ -62,6 +64,12 @@ cmd_history = OB.command "history" $ OB.info (O.helper <*> parser) desc
   where
   desc = OB.progDesc "Display event log"
   parser = pure Cmd_History
+
+cmd_undo :: OB.Mod OB.CommandFields Cmd
+cmd_undo = OB.command "undo" $ OB.info (O.helper <*> parser) desc
+  where
+  desc = OB.progDesc "Pop the most recent event"
+  parser = pure Cmd_Undo
 
 noteOpt :: O.Parser (Maybe String)
 noteOpt = OB.option (Just <$> OB.str) $ fold

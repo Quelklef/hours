@@ -41,6 +41,12 @@ main = do
     Cmd_History -> do
       log $ journal # map prettifyEvent # intercalate "\n\n"
 
+    Cmd_Undo -> do
+      let journal' = Array.dropEnd 1 journal
+      app <- simulate journal' # throwLeft "simulating"
+      log =<< prettifyApp app
+      writeJournal journalLoc journal'
+
     Cmd_Append mkEvent -> do
       now <- getNow
       let event = mkEvent { now }
