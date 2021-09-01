@@ -14,8 +14,7 @@ import Data.Newtype (un)
 import Data.Tuple.Nested ((/\))
 
 import Hours.Time (Instant, asMilliseconds, Minutes(..))
-import Hours.Types (Event(..), EventPayload(..))
-import Hours.AppState (AppState(..))
+import Hours.Types (Event(..), EventPayload(..), AppState(..))
 
 class Pretty a where
   pretty :: a -> String

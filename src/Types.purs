@@ -4,6 +4,7 @@ import Prelude
 
 import Data.Maybe (Maybe)
 import Data.Either (Either)
+import Data.Map (Map)
 import Data.Argonaut.Decode.Class (class DecodeJson)
 import Data.Argonaut.Encode.Class (class EncodeJson)
 import Data.Argonaut.Decode.Generic (genericDecodeJson)
@@ -45,3 +46,5 @@ type TopicState =
   , activeWork :: Maybe { started :: Instant }
   , isRetired :: Boolean
   }
+
+newtype AppState = AppState (Map String TopicState)

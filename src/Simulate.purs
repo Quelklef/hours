@@ -1,17 +1,18 @@
-module Hours.AppState (AppState(..), simulate) where
+module Hours.Simulate (simulate) where
 
 import Prelude
 
-import Data.Map (Map)
 import Data.Map as Map
 import Data.Foldable (class Foldable, foldl)
 import Data.Either (Either(..), note)
 import Data.Maybe (Maybe(..))
 
-import Hours.Types (Result, TopicState, Event(..), EventPayload(..))
+import Hours.Types (Result, TopicState, Event(..), EventPayload(..), AppState(..))
 import Hours.Time (Minutes, minutesBetween)
 
-newtype AppState = AppState (Map String TopicState)
+simulate :: forall f. Foldable f => f Event -> Either String AppState
+simulate actions = foldl (\s a -> s >>= execute a) (pure init) actions
+  where init = AppState Map.empty
 
 mkTopicState :: String -> TopicState
 mkTopicState name =
@@ -28,10 +29,6 @@ withTopic topic f (AppState states) = do
   state' <- f state
   let states' = Map.insert topic state' states
   pure (AppState states')
-
-simulate :: forall f. Foldable f => f Event -> Either String AppState
-simulate actions = foldl (\s a -> s >>= execute a) (pure init) actions
-  where init = AppState Map.empty
 
 execute :: Event -> AppState -> Either String AppState
 execute (Event event) appState@(AppState states) = case event.payload of
