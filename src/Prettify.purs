@@ -57,6 +57,8 @@ prettifyApp (App app) = do
     pure $ renderBox ["Topic", "Current", "Logged", "Unbilled"] $
       app.topics
       # Map.values
+      # fromFoldable
+      # Array.filter (\topic -> not topic.isRetired)
       # map (\topic ->
         [ topic.name
         , case topic.activeWork of
@@ -65,7 +67,6 @@ prettifyApp (App app) = do
         , prettifyMinutes topic.workedTotal
         , prettifyMinutes topic.workedUnbilled
         ])
-      # fromFoldable
 
 -- Render an array of rows
 renderBox :: Array String -> Array (Array String) -> String
