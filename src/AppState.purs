@@ -5,65 +5,14 @@ import Prelude
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Either (Either(..), note)
-import Data.Maybe (Maybe(..), isJust, fromMaybe)
-import Data.Foldable (class Foldable, foldMap, length)
-import Data.String.CodeUnits (length) as Str
-import Data.Ord.Max (Max(..))
-import Data.Newtype (un)
-import Data.Tuple.Nested ((/\))
-import Data.Monoid (power)
-import Data.Array (zip, intercalate, fromFoldable)
-import Data.Array as Array
+import Data.Maybe (Maybe(..))
 import Type.Proxy (Proxy(..))
 
 import Hours.Types (Result, TopicState, Event(..), EventPayload(..))
 import Hours.Time (Minutes, minutesBetween)
 import Hours.Gar (class Gar)
-import Hours.Pretty (class Pretty, pretty)
 
 newtype AppState = AppState (Map String TopicState)
-
-instance Pretty AppState where
-  pretty (AppState states) =
-    if Map.isEmpty states
-    then "Nothing to see here"
-    else renderBox ["Topic", "Total", "Unbilled"] $
-      states
-      # Map.values
-      # map (\state ->
-        [ state.name <> (if isJust state.activeWork then "*" else " ")
-        , pretty state.workedTotal
-        , pretty state.workedUnbilled
-        ])
-      # fromFoldable
-
--- Render an array of rows
-renderBox :: Array String -> Array (Array String) -> String
-renderBox headers rows =
-  let
-    padTo :: Int -> String -> String
-    padTo width str = str <> " " `power` (width - Str.length str)
-
-    foldMax :: forall f k a. Foldable f => Bounded k => Ord k => (a -> k) -> f a -> k
-    foldMax f l = l # foldMap (Max <<< f) # un Max
-
-    horizMargin = 2
-
-    cellWidths =
-      let hrows = Array.cons headers rows in
-      Array.range 0 (foldMax length rows - 1)
-      # map \colI -> hrows # foldMax \hrow -> Array.index hrow colI # map Str.length # fromMaybe 0
-
-    format row =
-      zip cellWidths row
-      # map (\(width /\ cell) -> (" " `power` horizMargin) <> padTo (width + horizMargin) cell)
-      # intercalate "│"
-
-    divider = cellWidths
-            # map (\width -> "─" `power` (width + 2 * horizMargin))
-            # intercalate "┼"
-
-  in ([format headers, divider] <> map format rows) # intercalate "\n"
 
 mkTopicState :: String -> TopicState
 mkTopicState name =

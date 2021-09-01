@@ -7,7 +7,6 @@ import Effect.Class.Console (log)
 import Effect.Exception (throw)
 import Data.Foldable (intercalate)
 import Data.Array as Array
-import Data.Map as Map
 import Data.Either (Either(..))
 import Options.Applicative.Extra (execParser)
 import Data.Bifunctor (lmap)

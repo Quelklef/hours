@@ -1,6 +1,7 @@
 module Hours.Time
   ( Instant
   , getNow
+  , asMilliseconds
   , Minutes(..)
   , minutesBetween
   ) where
@@ -15,8 +16,6 @@ import Data.Argonaut.Decode.Generic (genericDecodeJson)
 import Data.Argonaut.Encode.Generic (genericEncodeJson)
 import Data.Generic.Rep (class Generic)
 
-import Hours.Pretty (class Pretty)
-
 newtype Instant = Instant { millis :: Number }
 
 derive instance Generic Instant _
@@ -30,10 +29,8 @@ foreign import getNow_f
 getNow :: Effect Instant
 getNow = getNow_f \millis -> Instant { millis }
 
-foreign import prettifyMillis :: Number -> String
-
-instance Pretty Instant where
-  pretty (Instant { millis }) = prettifyMillis millis
+asMilliseconds :: Instant -> Number
+asMilliseconds (Instant { millis }) = millis
 
 newtype Minutes = Minutes Int
 
@@ -46,12 +43,6 @@ instance Semigroup Minutes where
 
 instance Monoid Minutes where
   mempty = Minutes 0
-
-instance Pretty Minutes where
-  pretty (Minutes n) =
-    let hours = n `div` 60
-        minutes = n `mod` 60
-    in show hours <> "h " <> show minutes <> "m"
 
 minutesBetween :: Instant -> Instant -> Minutes
 minutesBetween a b = Minutes <<< round $ (toMillis b - toMillis a) `div` (1000.0 * 60.0)
