@@ -35,7 +35,7 @@ cli = OB.info (O.helper <*> parser) desc
       [ OB.help "Journal file location"
       , OB.long "journal"
       , OB.short 'j'
-      , OB.metavar "JOURNAL"
+      , OB.metavar "LOC"
       , OB.value "./journal.txt"
       , OB.showDefault
       ]
@@ -67,7 +67,7 @@ cli = OB.info (O.helper <*> parser) desc
 cmd_status :: OB.Mod OB.CommandFields Cmd
 cmd_status = OB.command "status" $ OB.info (O.helper <*> parser) desc
   where
-  desc = OB.progDesc "Display current status"
+  desc = OB.progDesc "Display program status"
   parser = ado
     todayOnly <- OB.switch (OB.help "Show only today's hours" <> OB.long "today" <> OB.short 'd')
     in Cmd_Status { todayOnly }
@@ -75,13 +75,13 @@ cmd_status = OB.command "status" $ OB.info (O.helper <*> parser) desc
 cmd_eventLog :: OB.Mod OB.CommandFields Cmd
 cmd_eventLog = OB.command "event-log" $ OB.info (O.helper <*> parser) desc
   where
-  desc = OB.progDesc "Display event log"
+  desc = OB.progDesc "Internally, hours stores a log of user actions, called events. Display this log."
   parser = pure Cmd_History
 
 cmd_undo :: OB.Mod OB.CommandFields Cmd
 cmd_undo = OB.command "undo" $ OB.info (O.helper <*> parser) desc
   where
-  desc = OB.progDesc "Pop the most recent event"
+  desc = OB.progDesc "Remove the most recent event. This can be used to undo a mistaken command."
   parser = pure Cmd_Undo
 
 noteOpt :: O.Parser (Maybe String)
@@ -96,7 +96,7 @@ noteOpt = OB.option (Just <$> OB.str) $ fold
 cmd_newTopic :: OB.Mod OB.CommandFields Cmd
 cmd_newTopic = OB.command "new-topic" $ OB.info (O.helper <*> parser) desc
   where
-  desc = OB.progDesc "Create a new topic"
+  desc = OB.progDesc "Create a new topic, e.g. to track hours spent on some work for a client. A \"topic\" is just a project name."
   parser = ado
     topicName <- OB.option OB.str (OB.help "Topic name" <> OB.long "name")
     note <- noteOpt
@@ -106,7 +106,7 @@ cmd_newTopic = OB.command "new-topic" $ OB.info (O.helper <*> parser) desc
 cmd_retireTopic :: OB.Mod OB.CommandFields Cmd
 cmd_retireTopic = OB.command "retire-topic" $ OB.info (O.helper <*> parser) desc
   where
-  desc = OB.progDesc "Retire a topic"
+  desc = OB.progDesc "Retire a topic. This is just a soft-delete."
   parser = ado
     topicName <- OB.option OB.str (OB.help "Topic name" <> OB.long "topic" <> OB.short 't')
     note <- noteOpt
@@ -116,7 +116,7 @@ cmd_retireTopic = OB.command "retire-topic" $ OB.info (O.helper <*> parser) desc
 cmd_logWork :: OB.Mod OB.CommandFields Cmd
 cmd_logWork = OB.command "log" $ OB.info (O.helper <*> parser) desc
   where
-  desc = OB.progDesc "Log work on a topic"
+  desc = OB.progDesc "Log work on a topic. For instance, log that you worked 4h12m on some topic."
   parser = ado
     topicName <- OB.option OB.str (OB.help "Topic name" <> OB.long "topic" <> OB.short 't')
     hours <- OB.option OB.int (OB.help "Hours worked" <> OB.short 'H' <> OB.long "hours")
@@ -129,7 +129,7 @@ cmd_logWork = OB.command "log" $ OB.info (O.helper <*> parser) desc
 cmd_startWork :: OB.Mod OB.CommandFields Cmd
 cmd_startWork = OB.command "start-work" $ OB.info (O.helper <*> parser) desc
   where
-  desc = OB.progDesc "Start working on a topic"
+  desc = OB.progDesc "Start the timer."
   parser = ado
     topicName <- OB.option OB.str (OB.help "Topic name" <> OB.long "topic" <> OB.short 't')
     note <- noteOpt
@@ -139,7 +139,7 @@ cmd_startWork = OB.command "start-work" $ OB.info (O.helper <*> parser) desc
 cmd_stopWork :: OB.Mod OB.CommandFields Cmd
 cmd_stopWork = OB.command "stop-work" $ OB.info (O.helper <*> parser) desc
   where
-  desc = OB.progDesc "Stop working on a topic"
+  desc = OB.progDesc "Stop the timer and log the timed work."
   parser = ado
     topicName <- OB.option OB.str (OB.help "Topic name" <> OB.long "topic" <> OB.short 't')
     note <- noteOpt
@@ -149,7 +149,7 @@ cmd_stopWork = OB.command "stop-work" $ OB.info (O.helper <*> parser) desc
 cmd_billed :: OB.Mod OB.CommandFields Cmd
 cmd_billed = OB.command "billed" $ OB.info (O.helper <*> parser) desc
   where
-  desc = OB.progDesc "Note that you billed a topic"
+  desc = OB.progDesc "Flush the billing counter for a topic."
   parser = ado
     topicName <- OB.option OB.str (OB.help "Topic name" <> OB.long "topic" <> OB.short 't')
     note <- noteOpt
