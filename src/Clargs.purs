@@ -41,7 +41,7 @@ cli = OB.info (O.helper <*> parser) desc
 
     cmd <- OB.subparser $ fold
       [ cmd_status
-      , cmd_history
+      , cmd_eventLog
       , cmd_undo
       , cmd_newTopic
       , cmd_retireTopic
@@ -59,8 +59,8 @@ cmd_status = OB.command "status" $ OB.info (O.helper <*> parser) desc
   desc = OB.progDesc "Display current status"
   parser = pure Cmd_Status
 
-cmd_history :: OB.Mod OB.CommandFields Cmd
-cmd_history = OB.command "history" $ OB.info (O.helper <*> parser) desc
+cmd_eventLog :: OB.Mod OB.CommandFields Cmd
+cmd_eventLog = OB.command "event-log" $ OB.info (O.helper <*> parser) desc
   where
   desc = OB.progDesc "Display event log"
   parser = pure Cmd_History
