@@ -4,6 +4,7 @@ import Prelude
 
 import Data.Maybe (Maybe(..))
 import Data.Foldable (fold)
+import Control.Alt ((<|>))
 import Options.Applicative.Types (Parser, ParserInfo) as O
 import Options.Applicative.Extra (helper) as O
 import Options.Applicative.Builder as OB
@@ -39,17 +40,27 @@ cli = OB.info (O.helper <*> parser) desc
       , OB.showDefault
       ]
 
-    cmd <- OB.subparser $ fold
-      [ cmd_status
-      , cmd_eventLog
-      , cmd_undo
-      , cmd_newTopic
-      , cmd_retireTopic
-      , cmd_logWork
-      , cmd_startWork
-      , cmd_stopWork
-      , cmd_billed
-      ]
+    cmd <-
+      (OB.subparser $ fold
+        [ OB.commandGroup "Commands:"
+        , cmd_status
+        , cmd_newTopic
+        , cmd_retireTopic
+        , cmd_logWork
+        , cmd_billed
+        ])
+
+      <|> (OB.subparser $ fold
+        [ OB.commandGroup "Timer commands:"
+        , cmd_startWork
+        , cmd_stopWork
+        ])
+
+      <|> (OB.subparser $ fold
+        [ OB.commandGroup "Event commands:"
+        , cmd_eventLog
+        , cmd_undo
+        ])
 
     in Clargs { journalLoc, cmd }
 
