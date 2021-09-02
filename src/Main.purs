@@ -8,6 +8,8 @@ import Effect.Exception (throw)
 import Data.Foldable (intercalate)
 import Data.Array as Array
 import Data.Either (Either(..))
+import Data.Traversable (traverse)
+import Data.Maybe (Maybe(..))
 import Options.Applicative.Extra (execParser)
 import Data.Bifunctor (lmap)
 import Node.Process (exit)
@@ -21,8 +23,8 @@ import Data.Argonaut.Decode.Error (printJsonDecodeError) as A
 import Data.Argonaut.Encode (encodeJson) as A
 
 import Hours.Clargs (cli, Clargs(..), Cmd(..))
-import Hours.Types (Journal)
-import Hours.Time (getNow)
+import Hours.Types (Journal, Event(..), EventPayload(..))
+import Hours.Time (getNow, isToday)
 import Hours.Simulate (simulate)
 import Hours.Prettify (prettifyApp, prettifyEvent)
 
@@ -34,8 +36,9 @@ main = do
   journal <- readJournal journalLoc
 
   case cmd of
-    Cmd_Status -> do
-      app <- simulate journal # throwLeft "simulating"
+    Cmd_Status { todayOnly } -> do
+      journal' <- if todayOnly then filterToday journal else pure journal
+      app <- simulate journal' # throwLeft "simulating"
       log =<< prettifyApp app
 
     Cmd_History -> do
@@ -60,6 +63,28 @@ main = do
           writeJournal journalLoc journal'
 
   where
+
+  filterToday :: Journal -> Effect Journal
+  filterToday journal = do
+    let shouldKeep (Event event) = disj <$> isToday event.timestamp <*> isTimeless event
+    journal' <- journal # filterM shouldKeep
+    pure journal'
+
+    where
+      isTimeless event = pure $ case event.payload of
+        EventPayload_NewTopic    _ -> true
+        EventPayload_RetireTopic _ -> true
+        EventPayload_LogWork     _ -> false
+        EventPayload_WorkStart   _ -> false
+        EventPayload_WorkStop    _ -> false
+        EventPayload_Billed      _ -> true
+
+  filterM :: forall m a. Monad m => (a -> m Boolean) -> Array a -> m (Array a)
+  filterM p =
+    traverse (\x -> do
+      b <- p x
+      pure $ if b then Just x else Nothing)
+    >>> map Array.catMaybes
 
   readJournal :: String -> Effect Journal
   readJournal loc = do

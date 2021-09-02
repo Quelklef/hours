@@ -2,6 +2,7 @@ module Hours.Time
   ( Instant
   , getNow
   , asMilliseconds
+  , isToday
   , Minutes(..)
   , minutesBetween
   ) where
@@ -31,6 +32,8 @@ getNow = getNow_f \millis -> Instant { millis }
 
 asMilliseconds :: Instant -> Number
 asMilliseconds (Instant { millis }) = millis
+
+foreign import isToday :: Instant -> Effect Boolean
 
 newtype Minutes = Minutes Int
 

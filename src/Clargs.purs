@@ -17,7 +17,7 @@ data Clargs = Clargs
   }
 
 data Cmd
-  = Cmd_Status
+  = Cmd_Status { todayOnly :: Boolean }
   | Cmd_History
   | Cmd_Undo
   | Cmd_Append ({ now :: Instant } -> Event)
@@ -57,7 +57,9 @@ cmd_status :: OB.Mod OB.CommandFields Cmd
 cmd_status = OB.command "status" $ OB.info (O.helper <*> parser) desc
   where
   desc = OB.progDesc "Display current status"
-  parser = pure Cmd_Status
+  parser = ado
+    todayOnly <- OB.switch (OB.help "Show only today's hours" <> OB.long "today" <> OB.short 'd')
+    in Cmd_Status { todayOnly }
 
 cmd_eventLog :: OB.Mod OB.CommandFields Cmd
 cmd_eventLog = OB.command "event-log" $ OB.info (O.helper <*> parser) desc
