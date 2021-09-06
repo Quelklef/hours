@@ -27,6 +27,7 @@ nixed = purs-nix.purs
         argonaut-generic
         optparse
         node-fs
+        debug
       ];
   };
 

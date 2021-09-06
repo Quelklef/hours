@@ -2,15 +2,13 @@ module Hours.Clargs (Clargs(..), Cmd(..), cli) where
 
 import Prelude
 
-import Data.Maybe (Maybe(..))
 import Data.Foldable (fold)
-import Control.Alt ((<|>))
 import Options.Applicative.Types (Parser, ParserInfo) as O
 import Options.Applicative.Extra (helper) as O
 import Options.Applicative.Builder as OB
 
-import Hours.Time (Instant, Minutes(..))
-import Hours.Types (Event(..), EventPayload(..))
+import Hours.Time (Instant, parseMinutes)
+import Hours.Core (Event(..), EventPayload(..))
 
 data Clargs = Clargs
   { journalLoc :: String
@@ -18,10 +16,17 @@ data Clargs = Clargs
   }
 
 data Cmd
-  = Cmd_Status { todayOnly :: Boolean }
-  | Cmd_History
-  | Cmd_Undo
-  | Cmd_Append ({ now :: Instant } -> Event)
+
+  = Cmd_Display
+  | Cmd_DisplayTopic { topicName :: String }
+  | Cmd_DisplaySession
+  | Cmd_DisplayEventlog
+
+  | Cmd_EventlogAppend ({ timestamp :: Instant } -> Event)
+  | Cmd_EventlogPop
+  | Cmd_EventlogEdit
+
+type CommandParser = OB.Mod OB.CommandFields Cmd
 
 cli :: O.ParserInfo Clargs
 cli = OB.info (O.helper <*> parser) desc
@@ -36,122 +41,176 @@ cli = OB.info (O.helper <*> parser) desc
       , OB.long "journal"
       , OB.short 'j'
       , OB.metavar "LOC"
-      , OB.value "./journal.txt"
+      , OB.value "./journal.json"
       , OB.showDefault
       ]
 
-    cmd <-
-      (OB.subparser $ fold
-        [ OB.commandGroup "Commands:"
-        , cmd_status
-        , cmd_newTopic
-        , cmd_retireTopic
-        , cmd_logWork
-        , cmd_billed
-        ])
-
-      <|> (OB.subparser $ fold
-        [ OB.commandGroup "Timer commands:"
-        , cmd_startWork
-        , cmd_stopWork
-        ])
-
-      <|> (OB.subparser $ fold
-        [ OB.commandGroup "Event commands:"
-        , cmd_eventLog
-        , cmd_undo
-        ])
+    cmd <- OB.subparser $ fold
+      [ cmd_show
+      , cmd_topic
+      , cmd_session
+      , cmd_eventlog
+      ]
 
     in Clargs { journalLoc, cmd }
 
-cmd_status :: OB.Mod OB.CommandFields Cmd
-cmd_status = OB.command "status" $ OB.info (O.helper <*> parser) desc
+
+cmd_show :: CommandParser
+cmd_show = OB.command "show" $ OB.info (O.helper <*> parser) desc
   where
   desc = OB.progDesc "Display program status"
+  parser = pure Cmd_Display
+
+
+cmd_topic :: CommandParser
+cmd_topic = OB.command "topic" $ OB.info (O.helper <*> parser) desc
+  where
+  desc = OB.progDesc "Topic (i.e., project) -related commands"
+  parser = OB.subparser $ fold
+    [ cmd_topicShow
+    , cmd_topicNew
+    , cmd_topicSetDesc
+    , cmd_topicRetire
+    , cmd_topicFlush
+    , cmd_topicLog
+    ]
+
+cmd_topicShow :: CommandParser
+cmd_topicShow = OB.command "show" $ OB.info (O.helper <*> parser) desc
+  where
+  desc = OB.progDesc "Show topic status"
   parser = ado
-    todayOnly <- OB.switch (OB.help "Show only today's hours" <> OB.long "today" <> OB.short 'd')
-    in Cmd_Status { todayOnly }
+    topicName <- topicNameOpt
+    in Cmd_DisplayTopic { topicName }
 
-cmd_eventLog :: OB.Mod OB.CommandFields Cmd
-cmd_eventLog = OB.command "event-log" $ OB.info (O.helper <*> parser) desc
+cmd_topicNew :: CommandParser
+cmd_topicNew = OB.command "new" $ OB.info (O.helper <*> parser) desc
   where
-  desc = OB.progDesc "Internally, hours stores a log of user actions, called events. Display this log."
-  parser = pure Cmd_History
+  desc = OB.progDesc "Create new topic"
+  parser = eventOf ado
+    topicName <- OB.option OB.str (OB.help "topic name" <> OB.long "name")
+    in EventPayload_TopicNew { topicName }
 
-cmd_undo :: OB.Mod OB.CommandFields Cmd
-cmd_undo = OB.command "undo" $ OB.info (O.helper <*> parser) desc
+cmd_topicSetDesc :: CommandParser
+cmd_topicSetDesc = OB.command "set-desc" $ OB.info (O.helper <*> parser) desc
   where
-  desc = OB.progDesc "Remove the most recent event. This can be used to undo a mistaken command."
-  parser = pure Cmd_Undo
+  desc = OB.progDesc "Set topic description"
+  parser = eventOf ado
+    topicName <- topicNameOpt
+    desc <- OB.option OB.str (OB.help "new description" <> OB.long "desc")
+    in EventPayload_TopicSetDesc { topicName, desc }
 
-noteOpt :: O.Parser (Maybe String)
-noteOpt = OB.option (Just <$> OB.str) $ fold
-  [ OB.help "Note"
-  , OB.long "note"
-  , OB.metavar "NOTE"
-  , OB.value Nothing
-  , OB.showDefault
+cmd_topicRetire :: CommandParser
+cmd_topicRetire = OB.command "retire" $ OB.info (O.helper <*> parser) desc
+  where
+  desc = OB.progDesc "Retire a topic. This is a soft-delete"
+  parser = eventOf ado
+    topicName <- topicNameOpt
+    in EventPayload_TopicRetire { topicName }
+
+cmd_topicFlush :: CommandParser
+cmd_topicFlush = OB.command "flush" $ OB.info (O.helper <*> parser) desc
+  where
+  desc = OB.progDesc "Reset billable hours to zero"
+  parser = eventOf ado
+    topicName <- topicNameOpt
+    in EventPayload_TopicFlush { topicName }
+
+cmd_topicLog :: CommandParser
+cmd_topicLog = OB.command "log" $ OB.info (O.helper <*> parser) desc
+  where
+  desc = OB.progDesc "Record work"
+  parser = eventOf ado
+    topicName <- topicNameOpt
+    amount <- OB.option (OB.maybeReader parseMinutes) (OB.help "amount of time" <> OB.long "amount" <> OB.short 'a')
+    in EventPayload_TopicLog { topicName, amount }
+
+
+cmd_session :: CommandParser
+cmd_session = OB.command "session" $ OB.info (O.helper <*> parser) desc
+  where
+  desc = OB.progDesc "Start and manage a time-tracking session"
+  parser = OB.subparser $ fold
+    [ cmd_sessionShow
+    , cmd_sessionStart
+    , cmd_sessionStop
+    , cmd_sessionJot
+    ]
+
+cmd_sessionShow :: CommandParser
+cmd_sessionShow = OB.command "show" $ OB.info (O.helper <*> parser) desc
+  where
+  desc = OB.progDesc "Show session status"
+  parser = pure Cmd_DisplaySession
+
+cmd_sessionStart :: CommandParser
+cmd_sessionStart = OB.command "start" $ OB.info (O.helper <*> parser) desc
+  where
+  desc = OB.progDesc "Start a timer towards a topic"
+  parser = eventOf ado
+    topicName <- topicNameOpt
+    in EventPayload_SessionStart { topicName }
+
+cmd_sessionStop :: CommandParser
+cmd_sessionStop = OB.command "stop" $ OB.info (O.helper <*> parser) desc
+  where
+  desc = OB.progDesc "Stop the timer and add the timed hours to the sessions's topic"
+  parser = eventOf (pure EventPayload_SessionStop)
+
+cmd_sessionJot :: CommandParser
+cmd_sessionJot = OB.command "jot" $ OB.info (O.helper <*> parser) desc
+  where
+  desc = OB.progDesc "Record a note"
+  parser = eventOf ado
+    note <- OB.option OB.str (OB.help "text to note down" <> OB.long "note" <> OB.short 'n')
+    in EventPayload_SessionJot { note }
+
+
+cmd_eventlog :: CommandParser
+cmd_eventlog = OB.command "eventlog" $ OB.info (O.helper <*> parser) desc
+  where
+  desc = OB.progDesc "Eventlog-related commands"
+  parser = OB.subparser $ fold
+    [ cmd_eventlogShow
+    , cmd_eventlogUndo
+    , cmd_eventlogEdit
+    ]
+
+cmd_eventlogShow :: CommandParser
+cmd_eventlogShow = OB.command "show" $ OB.info (O.helper <*> parser) desc
+  where
+  desc = OB.progDesc "Show the event log"
+  parser = pure Cmd_DisplayEventlog
+
+cmd_eventlogUndo :: CommandParser
+cmd_eventlogUndo = OB.command "undo" $ OB.info (O.helper <*> parser) desc
+  where
+  desc = OB.progDesc "Popt the most recent event"
+  parser = pure Cmd_EventlogPop
+
+cmd_eventlogEdit :: CommandParser
+cmd_eventlogEdit = OB.command "edit" $ OB.info (O.helper <*> parser) desc
+  where
+  desc = OB.progDesc "Edit the event log in $VISUAL"
+  parser = pure Cmd_EventlogEdit
+
+
+topicNameOpt :: O.Parser String
+topicNameOpt = OB.option OB.str $ fold
+  [ OB.help "Topic name"
+  , OB.long "topic"
+  , OB.short 't'
+  , OB.metavar "<topic>"
   ]
 
-cmd_newTopic :: OB.Mod OB.CommandFields Cmd
-cmd_newTopic = OB.command "new-topic" $ OB.info (O.helper <*> parser) desc
-  where
-  desc = OB.progDesc "Create a new topic, e.g. to track hours spent on some work for a client. A \"topic\" is just a project name."
-  parser = ado
-    topicName <- OB.option OB.str (OB.help "Topic name" <> OB.long "name")
-    note <- noteOpt
-    in Cmd_Append $ \{ now: timestamp } ->
-      Event { timestamp, note, payload: EventPayload_NewTopic { topicName }}
-
-cmd_retireTopic :: OB.Mod OB.CommandFields Cmd
-cmd_retireTopic = OB.command "retire-topic" $ OB.info (O.helper <*> parser) desc
-  where
-  desc = OB.progDesc "Retire a topic. This is just a soft-delete."
-  parser = ado
-    topicName <- OB.option OB.str (OB.help "Topic name" <> OB.long "topic" <> OB.short 't')
-    note <- noteOpt
-    in Cmd_Append $ \{ now: timestamp } ->
-      Event { timestamp, note, payload: EventPayload_RetireTopic { topicName }}
-
-cmd_logWork :: OB.Mod OB.CommandFields Cmd
-cmd_logWork = OB.command "log" $ OB.info (O.helper <*> parser) desc
-  where
-  desc = OB.progDesc "Log work on a topic. For instance, log that you worked 4h12m on some topic."
-  parser = ado
-    topicName <- OB.option OB.str (OB.help "Topic name" <> OB.long "topic" <> OB.short 't')
-    hours <- OB.option OB.int (OB.help "Hours worked" <> OB.short 'H' <> OB.long "hours")
-    minutes <- OB.option OB.int (OB.help "Minutes worked" <> OB.short 'M' <> OB.long "minutes")
-    let amount = Minutes $ hours * 60 + minutes
-    note <- noteOpt
-    in Cmd_Append $ \{ now: timestamp } ->
-      Event { timestamp, note, payload: EventPayload_LogWork { topicName, amount }}
-
-cmd_startWork :: OB.Mod OB.CommandFields Cmd
-cmd_startWork = OB.command "start-work" $ OB.info (O.helper <*> parser) desc
-  where
-  desc = OB.progDesc "Start the timer."
-  parser = ado
-    topicName <- OB.option OB.str (OB.help "Topic name" <> OB.long "topic" <> OB.short 't')
-    note <- noteOpt
-    in Cmd_Append $ \{ now: timestamp } ->
-      Event { timestamp, note, payload: EventPayload_WorkStart { topicName }}
-
-cmd_stopWork :: OB.Mod OB.CommandFields Cmd
-cmd_stopWork = OB.command "stop-work" $ OB.info (O.helper <*> parser) desc
-  where
-  desc = OB.progDesc "Stop the timer and log the timed work."
-  parser = ado
-    topicName <- OB.option OB.str (OB.help "Topic name" <> OB.long "topic" <> OB.short 't')
-    note <- noteOpt
-    in Cmd_Append $ \{ now: timestamp } ->
-      Event { timestamp, note, payload: EventPayload_WorkStop { topicName }}
-
-cmd_billed :: OB.Mod OB.CommandFields Cmd
-cmd_billed = OB.command "billed" $ OB.info (O.helper <*> parser) desc
-  where
-  desc = OB.progDesc "Flush the billing counter for a topic."
-  parser = ado
-    topicName <- OB.option OB.str (OB.help "Topic name" <> OB.long "topic" <> OB.short 't')
-    note <- noteOpt
-    in Cmd_Append $ \{ now: timestamp } ->
-      Event { timestamp, note, payload: EventPayload_Billed { topicName }}
+eventOf :: O.Parser EventPayload -> O.Parser Cmd
+eventOf payloadOpt = ado
+  payload <- payloadOpt
+  comment <- OB.option OB.str $ fold
+    [ OB.help "Event comment"
+    , OB.long "comment"
+    , OB.short 'c'
+    , OB.metavar "<comment>"
+    , OB.value ""
+    ]
+  in Cmd_EventlogAppend \{ timestamp } -> Event { timestamp, comment, payload }

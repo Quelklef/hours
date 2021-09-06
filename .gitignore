@@ -2,4 +2,4 @@ output/
 index.js
 .purs-nix-run.js
 result
-journal.txt
+journal.json

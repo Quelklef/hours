@@ -5,17 +5,18 @@ import Prelude
 import Effect (Effect)
 import Effect.Class.Console (log)
 import Effect.Exception (throw)
-import Data.Foldable (intercalate)
-import Data.Array as Array
-import Data.Either (Either(..))
-import Data.Traversable (traverse)
+import Effect.Aff (launchAff_)
+import Control.Promise (Promise, toAffE)
 import Data.Maybe (Maybe(..))
-import Options.Applicative.Extra (execParser)
+import Data.Array as Array
+import Data.Either (Either(..), note)
 import Data.Bifunctor (lmap)
+import Data.Map as Map
 import Node.Process (exit)
 import Node.Buffer (toString, fromString) as Buff
 import Node.Encoding (Encoding(..)) as Buff
 import Node.FS.Sync (readFile, writeFile, exists) as FS
+import Options.Applicative.Extra (execParser)
 import Data.Argonaut.Parser (jsonParser) as A
 import Data.Argonaut.Core (stringify) as A
 import Data.Argonaut.Decode (decodeJson) as A
@@ -23,88 +24,100 @@ import Data.Argonaut.Decode.Error (printJsonDecodeError) as A
 import Data.Argonaut.Encode (encodeJson) as A
 
 import Hours.Clargs (cli, Clargs(..), Cmd(..))
-import Hours.Types (Journal, Event(..), EventPayload(..))
-import Hours.Time (getNow, isToday)
-import Hours.Simulate (simulate)
-import Hours.Prettify (prettifyApp, prettifyEvent)
+import Hours.Core (Journal)
+import Hours.Time (getNow)
+import Hours.Simulate (simulate, App(..))
+import Hours.Display.AppAsTable (displayAppAsTable)
+import Hours.Display.Journal (displayJournal)
+import Hours.Display.Topic (displayTopic)
+import Hours.Display.Session (displayAppSession)
+
+foreign import invokeEditor :: String -> Effect (Promise Unit)
+foreign import prettifyJSON :: String -> Effect String
 
 main :: Effect Unit
 main = do
 
   Clargs { journalLoc, cmd } <- execParser cli
 
-  journal <- readJournal journalLoc
-
   case cmd of
-    Cmd_Status { todayOnly } -> do
-      journal' <- if todayOnly then filterToday journal else pure journal
-      app <- simulate journal' # throwLeft "simulating"
-      log =<< prettifyApp app
 
-    Cmd_History -> do
-      log $ journal # map prettifyEvent # intercalate "\n\n"
+    Cmd_Display -> do
+      journal <- readJournal journalLoc
+      app <- simulate journal # throwLeft { while: "simulating" }
+      log =<< displayAppAsTable app
 
-    Cmd_Undo -> do
-      let journal' = Array.dropEnd 1 journal
-      app <- simulate journal' # throwLeft "simulating"
-      log =<< prettifyApp app
+    Cmd_DisplayTopic { topicName } -> do
+      journal <- readJournal journalLoc
+      (App app) <- simulate journal # throwLeft { while: "simulating" }
+      topic <- Map.lookup topicName app.topics # note "No such topic" # failLeft
+      log $ displayTopic topic
+
+    Cmd_DisplayEventlog -> do
+      journal <- readJournal journalLoc
+      log $ displayJournal journal
+
+    Cmd_DisplaySession -> do
+      journal <- readJournal journalLoc
+      app <- simulate journal # throwLeft { while: "simulating" }
+      log =<< (displayAppSession app # failLeft)
+
+    Cmd_EventlogAppend mkEvent -> do
+      journal <- readJournal journalLoc
+      now <- getNow
+      let event = mkEvent { timestamp: now }
+      let journal' = Array.snoc journal event
+      _ <- simulate journal' # failLeft
       writeJournal journalLoc journal'
 
-    Cmd_Append mkEvent -> do
-      now <- getNow
-      let event = mkEvent { now }
-      let journal' = Array.snoc journal event
-      case simulate journal' of
-        Left err -> do
-          log err
-          exit 1
-        Right app -> do
-          log =<< prettifyApp app
-          writeJournal journalLoc journal'
+    Cmd_EventlogPop -> do
+      journal <- readJournal journalLoc
+      writeJournal journalLoc (Array.dropEnd 1 journal)
+
+    Cmd_EventlogEdit -> do
+      launchAff_ $ toAffE $ invokeEditor journalLoc
 
   where
 
-  filterToday :: Journal -> Effect Journal
-  filterToday journal = do
-    let shouldKeep (Event event) = disj <$> isToday event.timestamp <*> isTimeless event
-    journal' <- journal # filterM shouldKeep
-    pure journal'
-
-    where
-      isTimeless event = pure $ case event.payload of
-        EventPayload_NewTopic    _ -> true
-        EventPayload_RetireTopic _ -> true
-        EventPayload_LogWork     _ -> false
-        EventPayload_WorkStart   _ -> false
-        EventPayload_WorkStop    _ -> false
-        EventPayload_Billed      _ -> true
-
-  filterM :: forall m a. Monad m => (a -> m Boolean) -> Array a -> m (Array a)
-  filterM p =
-    traverse (\x -> do
-      b <- p x
-      pure $ if b then Just x else Nothing)
-    >>> map Array.catMaybes
-
-  readJournal :: String -> Effect Journal
-  readJournal loc = do
-    journalExists <- FS.exists loc
-    if not journalExists then
-      pure []
+  readFile :: String -> Effect (Maybe String)
+  readFile loc = do
+    exists <- FS.exists loc
+    if not exists then
+      pure Nothing
     else do
       buff <- FS.readFile loc
       text <- Buff.toString Buff.UTF8 buff
-      json <- A.jsonParser text # throwLeft "parsing json"
-      journal <- A.decodeJson json # lmap A.printJsonDecodeError # throwLeft "parsing journal"
-      pure journal
+      pure $ Just text
 
-  writeJournal :: String -> Journal -> Effect Unit
-  writeJournal loc journal = do
-    let text = A.stringify $ A.encodeJson journal
+  writeFile :: String -> String -> Effect Unit
+  writeFile loc text = do
     buff <- Buff.fromString text Buff.UTF8
     FS.writeFile loc buff
 
-  throwLeft :: forall a. String -> Either String a -> Effect a
-  throwLeft while = case _ of
-    Left err -> throw ("Error while " <> while <> ": " <> err)
+  readJournal :: String -> Effect Journal
+  readJournal loc = do
+    mText <- readFile loc
+    case mText of
+      Nothing -> pure []
+      Just text -> do
+        json <- A.jsonParser text # throwLeft { while: "parsing json" }
+        journal <- A.decodeJson json # lmap A.printJsonDecodeError # throwLeft { while: "parsing journal" }
+        pure journal
+
+  writeJournal :: String -> Journal -> Effect Unit
+  writeJournal loc journal = do
+    let jsonUgly = A.stringify $ A.encodeJson journal
+    jsonPretty <- prettifyJSON jsonUgly
+    writeFile loc jsonPretty
+
+  throwLeft :: forall x a. Show x => { while :: String } -> Either x a -> Effect a
+  throwLeft { while } = case _ of
+    Left err -> throw ("Error while " <> while <> ": " <> show err)
+    Right val -> pure val
+
+  failLeft :: forall a. Either String a -> Effect a
+  failLeft = case _ of
+    Left err -> do
+      log err
+      exit 1
     Right val -> pure val
