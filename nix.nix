@@ -1,4 +1,6 @@
-{ pkgs }:
+{ pkgs
+, system ? builtins.currentSystem
+}:
 
 let
 
@@ -6,9 +8,9 @@ purs-nix =
   import
     (builtins.fetchGit
        { url = "https://github.com/ursi/purs-nix.git";
-         rev = "988505248316b1dc82504c8e25358da535e34bd6";
+         rev = "e77b465c9ca4f525877058d6699469e58bcfdd2f";
        }
-    ) {};
+    ) { inherit system; };
 
 nixed = purs-nix.purs
   { srcs = [ ./src ];
