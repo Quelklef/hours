@@ -12,6 +12,7 @@ import Data.Array as Array
 import Data.Either (Either(..), note)
 import Data.Bifunctor (lmap)
 import Data.Map as Map
+import Data.Traversable (traverse)
 import Node.Process (exit)
 import Node.Buffer (toString, fromString) as Buff
 import Node.Encoding (Encoding(..)) as Buff
@@ -24,8 +25,8 @@ import Data.Argonaut.Decode.Error (printJsonDecodeError) as A
 import Data.Argonaut.Encode (encodeJson) as A
 
 import Hours.Clargs (cli, Clargs(..), Cmd(..))
-import Hours.Core (Journal)
-import Hours.Time (getNow)
+import Hours.Core (Journal, Event(..), EventPayload(..))
+import Hours.Time (getNow, isToday)
 import Hours.Simulate (simulate, App(..))
 import Hours.Display.AppAsTable (displayAppAsTable)
 import Hours.Display.Journal (displayJournal)
@@ -42,14 +43,16 @@ main = do
 
   case cmd of
 
-    Cmd_Display -> do
+    Cmd_Display { todayOnly } -> do
       journal <- readJournal journalLoc
-      app <- simulate journal # throwLeft { while: "simulating" }
+      journal' <- if todayOnly then filterOnlyTodaysWork journal else pure journal
+      app <- simulate journal' # throwLeft { while: "simulating" }
       log =<< displayAppAsTable app
 
-    Cmd_DisplayTopic { topicName } -> do
+    Cmd_DisplayTopic { topicName, todayOnly } -> do
       journal <- readJournal journalLoc
-      (App app) <- simulate journal # throwLeft { while: "simulating" }
+      journal' <- if todayOnly then filterOnlyTodaysWork journal else pure journal
+      (App app) <- simulate journal' # throwLeft { while: "simulating" }
       topic <- Map.lookup topicName app.topics # note "No such topic" # failLeft
       log $ displayTopic topic
 
@@ -78,6 +81,28 @@ main = do
       launchAff_ $ toAffE $ invokeEditor journalLoc
 
   where
+
+  filterOnlyTodaysWork :: Journal -> Effect Journal
+  filterOnlyTodaysWork = filterM shouldKeep
+    where shouldKeep (Event event) = case event.payload of
+            EventPayload_TopicNew _ -> pure true
+            EventPayload_TopicSetDesc _ -> pure true
+            EventPayload_TopicRetire _ -> pure true
+            EventPayload_TopicFlush _ -> pure true
+            EventPayload_TopicLog _ -> isToday event.timestamp
+            EventPayload_SessionStart _ -> isToday event.timestamp
+            EventPayload_SessionStop -> isToday event.timestamp
+            EventPayload_SessionJot _ -> pure true
+              -- ^ Note: this filtering could cause the journal to have 'session stop'
+              --         and 'session jot' events without a corresponding 'session start'
+              --         event, but that shouldn't be a problem.
+
+  filterM :: forall m a. Monad m => (a -> m Boolean) -> Array a -> m (Array a)
+  filterM p =
+    traverse (\x -> do
+      b <- p x
+      pure $ if b then Just x else Nothing)
+    >>> map Array.catMaybes
 
   readFile :: String -> Effect (Maybe String)
   readFile loc = do

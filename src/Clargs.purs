@@ -17,8 +17,8 @@ data Clargs = Clargs
 
 data Cmd
 
-  = Cmd_Display
-  | Cmd_DisplayTopic { topicName :: String }
+  = Cmd_Display { todayOnly :: Boolean }
+  | Cmd_DisplayTopic { topicName :: String, todayOnly :: Boolean }
   | Cmd_DisplaySession
   | Cmd_DisplayEventlog
 
@@ -59,7 +59,9 @@ cmd_show :: CommandParser
 cmd_show = OB.command "show" $ OB.info (O.helper <*> parser) desc
   where
   desc = OB.progDesc "Display program status"
-  parser = pure Cmd_Display
+  parser = ado
+    todayOnly <- OB.switch (OB.help "only consider work done today" <> OB.long "today-only" <> OB.short 'd')
+    in Cmd_Display { todayOnly }
 
 
 cmd_topic :: CommandParser
@@ -81,7 +83,8 @@ cmd_topicShow = OB.command "show" $ OB.info (O.helper <*> parser) desc
   desc = OB.progDesc "Show topic status"
   parser = ado
     topicName <- topicNameOpt
-    in Cmd_DisplayTopic { topicName }
+    todayOnly <- OB.switch (OB.help "only consider work done today" <> OB.long "today-only" <> OB.short 'd')
+    in Cmd_DisplayTopic { topicName, todayOnly }
 
 cmd_topicNew :: CommandParser
 cmd_topicNew = OB.command "new" $ OB.info (O.helper <*> parser) desc
