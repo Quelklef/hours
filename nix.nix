@@ -42,6 +42,21 @@ gitignoreSource =
   };
   in (import src { inherit (pkgs) lib; }).gitignoreSource;
 
+uglify-js =
+  let ujs-src = pkgs.fetchFromGitHub {
+          owner = "mishoo";
+          repo = "UglifyJS";
+          rev = "70ceda5398535c7028682e05cc8b82009953e54d";
+          sha256 = "09gnmmzwzn06lshnv5vp6hai2v8ngsjn3c76rf1d7c4nzlrn2w3p";
+        };
+  in pkgs.writeShellScript "uglifyjs" ''
+        ${pkgs.nodejs}/bin/node ${ujs-src}/bin/uglifyjs "$@"
+      '';
+
+result-js =
+  pkgs.runCommand "hours-ugly" {}
+    "${uglify-js} ${nixed.modules.Main.bundle {}} -c toplevel -m -o $out";
+
 in {
 
   deriv = pkgs.stdenv.mkDerivation {
@@ -50,7 +65,7 @@ in {
 
     installPhase = ''
       mkdir -p $out/bin
-      echo "${pkgs.nodejs}/bin/node ${nixed.modules.Main.bundle {}} \"\$@\"" > $out/bin/hours
+      echo "${pkgs.nodejs}/bin/node ${result-js} \"\$@\"" > $out/bin/hours
       chmod +x $out/bin/hours
     '';
   };
