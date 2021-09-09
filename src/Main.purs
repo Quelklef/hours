@@ -95,7 +95,7 @@ main = do
             EventPayload_SessionJot _ -> isToday event.timestamp
               -- ^ Note: this filtering could cause the journal to have 'session stop'
               --         and 'session jot' events without a corresponding 'session start'
-              --         event, but that shouldn't be a problem.
+              --         TODO: This can cause an error if we drop only part of a session.
 
   filterM :: forall m a. Monad m => (a -> m Boolean) -> Array a -> m (Array a)
   filterM p =
