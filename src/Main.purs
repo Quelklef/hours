@@ -92,7 +92,7 @@ main = do
             EventPayload_TopicLog _ -> isToday event.timestamp
             EventPayload_SessionStart _ -> isToday event.timestamp
             EventPayload_SessionStop -> isToday event.timestamp
-            EventPayload_SessionJot _ -> pure true
+            EventPayload_SessionJot _ -> isToday event.timestamp
               -- ^ Note: this filtering could cause the journal to have 'session stop'
               --         and 'session jot' events without a corresponding 'session start'
               --         event, but that shouldn't be a problem.
