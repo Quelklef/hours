@@ -18,7 +18,7 @@ exports.parseMinutes_f = str => {
 };
 
 exports.printMillis = ms =>
-  new Intl.DateTimeFormat('en-US', { dateStyle: 'long', timeStyle: 'long', hour12: false }).format(ms);
+  new Intl.DateTimeFormat('en-US', { dateStyle: 'long', timeStyle: 'long', hourCycle: 'h23' }).format(ms);
 
 exports.parseMillis = s => {
   const ms = +new Date(s);
