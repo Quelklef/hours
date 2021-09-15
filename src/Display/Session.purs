@@ -23,7 +23,7 @@ displayAppSession :: App -> Either String String
 displayAppSession (App app) =
   case app.session of
     Nothing -> Left "No running session"
-    Just sessInfo -> Right $ intercalate "\n"
+    Just sessInfo -> Right $ indent " " $ intercalate "\n"
       [ "Active session on topic " <> sessInfo.topicName
       , displaySession $ getSession sessInfo app.journal
       ]
@@ -70,9 +70,11 @@ displaySession sess =
   displayEvent :: Event -> Maybe String
   displayEvent (Event event) =
     let content = case event.payload of
-          EventPayload_SessionStart _      -> Just "started session"
-          EventPayload_SessionStop         -> Just "stopped session"
-          EventPayload_SessionJot { note } -> Just $ "note: " <> note
+          EventPayload_SessionStart _      -> Just $ event.comment `strOr` "<crickets>"
+          EventPayload_SessionStop         -> Just $ event.comment `strOr` "<crickets>"
+          EventPayload_SessionJot { note } -> Just $
+            let c = if event.comment == "" then "" else "\n" <> event.comment
+            in note <> c
 
           EventPayload_TopicNew _     -> Nothing
           EventPayload_TopicSetDesc _ -> Nothing
@@ -82,6 +84,9 @@ displaySession sess =
     in
       content <#> \str -> displayInstant_HHMM event.timestamp <> ": " <> str
 
+    where strOr "" b = b
+          strOr a _ = a
+
   decorate :: String -> String
   decorate =
     indent " "
@@ -89,11 +94,9 @@ displaySession sess =
     >>> (\lines -> fold
                    [ ("┌" <> _) <$> Array.take 1 lines
                    , ("│" <> _) <$> (Array.drop 1 $ Array.dropEnd 1 $ lines)
-                   , (end <> _) <$> Array.takeEnd 1 lines
+                   , (end <> _) <$> (Array.takeEnd 1 $ Array.drop 1 lines)
                    ])
     >>> intercalate "\n"
-    >>> indent " "
-
 
   end = case Array.takeEnd 1 sess of
     [Event { payload: EventPayload_SessionStop }] -> "└"
