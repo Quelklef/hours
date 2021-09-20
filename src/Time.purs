@@ -38,6 +38,9 @@ foreign import isToday :: Instant -> Effect Boolean
 
 newtype Minutes = Minutes Int
 
+derive instance Eq Minutes
+derive instance Ord Minutes
+
 instance Semigroup Minutes where
   append (Minutes n) (Minutes m) = Minutes $ m + n
 

@@ -7,7 +7,7 @@ import Options.Applicative.Types (Parser, ParserInfo) as O
 import Options.Applicative.Extra (helper) as O
 import Options.Applicative.Builder as OB
 
-import Hours.Time (Instant, parseMinutes)
+import Hours.Time (Instant, parseMinutes, Minutes(..))
 import Hours.Core (Event(..), EventPayload(..))
 
 data Clargs = Clargs
@@ -117,7 +117,12 @@ cmd_topicFlush = OB.command "flush" $ OB.info (O.helper <*> parser) desc
   desc = OB.progDesc "Reset billable hours to zero"
   parser = eventOf ado
     topicName <- topicNameOpt
-    in EventPayload_TopicFlush { topicName }
+    retainAmt <- OB.option (OB.maybeReader parseMinutes) $ fold
+      [ OB.long "retain"
+      , OB.help "amount to NOT flush"
+      , OB.value $ Minutes 0
+      ]
+    in EventPayload_TopicFlush { topicName, retain: retainAmt }
 
 cmd_topicLog :: CommandParser
 cmd_topicLog = OB.command "log" $ OB.info (O.helper <*> parser) desc

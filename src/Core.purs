@@ -2,12 +2,13 @@ module Hours.Core where
 
 import Prelude
 
+import Data.Maybe (fromMaybe)
 import Data.Either (Either(..))
 import Data.Argonaut.Decode.Class (class DecodeJson, decodeJson)
 import Data.Argonaut.Encode.Class (class EncodeJson, encodeJson)
 import Data.Argonaut.Decode ((.:), JsonDecodeError(MissingValue)) as A
 
-import Hours.Time (Instant, Minutes)
+import Hours.Time (Instant, Minutes(..))
 
 type Journal = Array Event
 
@@ -22,7 +23,7 @@ data EventPayload
   = EventPayload_TopicNew { topicName :: String }
   | EventPayload_TopicSetDesc { topicName :: String, desc :: String }
   | EventPayload_TopicRetire { topicName :: String }
-  | EventPayload_TopicFlush { topicName :: String }
+  | EventPayload_TopicFlush { topicName :: String, retain :: Minutes }
   | EventPayload_TopicLog { topicName :: String, amount :: Minutes }
 
   | EventPayload_SessionStart { topicName :: String }
@@ -50,8 +51,8 @@ instance EncodeJson EventPayload where
     EventPayload_TopicRetire { topicName } ->
       encodeJson { variant: "TopicRetire", topicName }
 
-    EventPayload_TopicFlush { topicName } ->
-      encodeJson { variant: "TopicFlush", topicName }
+    EventPayload_TopicFlush { topicName, retain } ->
+      encodeJson { variant: "TopicFlush", topicName, retain }
 
     EventPayload_TopicLog { topicName, amount } ->
       encodeJson { variant: "TopicLog", topicName, amount }
@@ -72,7 +73,9 @@ instance DecodeJson EventPayload where
       "TopicNew"     -> EventPayload_TopicNew     <$> decodeJson json
       "TopicSetDesc" -> EventPayload_TopicSetDesc <$> decodeJson json
       "TopicRetire"  -> EventPayload_TopicRetire  <$> decodeJson json
-      "TopicFlush"   -> EventPayload_TopicFlush   <$> decodeJson json
+      "TopicFlush"   -> decodeJson json
+                        # map (\o -> o { retain = o.retain # fromMaybe (Minutes 0) })
+                        # map EventPayload_TopicFlush
       "TopicLog"     -> EventPayload_TopicLog     <$> decodeJson json
       "SessionStart" -> EventPayload_SessionStart <$> decodeJson json
       "SessionStop"  -> EventPayload_SessionStop   #  pure

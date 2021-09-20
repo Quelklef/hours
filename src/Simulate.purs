@@ -63,11 +63,13 @@ execute (Event event) = case event.payload of
       >>> appendEvent (Event event)
       >>> pure
 
-  EventPayload_TopicFlush { topicName } ->
+  EventPayload_TopicFlush { topicName, retain } ->
     withTopic topicName $
-      (\topic -> topic { timeUnbilled = (mempty :: Minutes) })
-      >>> appendEvent (Event event)
-      >>> pure
+      (\topic ->
+        if retain > topic.timeUnbilled
+        then Left "Cannot retain more when flushing than you have unbilled"
+        else Right topic { timeUnbilled = retain })
+      >>> map (appendEvent $ Event event)
 
   EventPayload_TopicLog { topicName, amount } ->
     withTopic topicName $
