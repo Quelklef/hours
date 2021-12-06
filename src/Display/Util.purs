@@ -4,6 +4,7 @@ import Prelude
 
 import Data.Foldable (class Foldable, foldMap)
 import Data.Ord.Max (Max(..))
+import Data.Ord (abs)
 import Data.Tuple.Nested (type (/\), (/\))
 import Data.Newtype (un)
 import Data.String.Common (split) as Str
@@ -54,6 +55,7 @@ displayInstant_Date = asMilliseconds >>> displayMillisecondsAsDate
 
 displayMinutes :: Minutes -> String
 displayMinutes (Minutes n) =
-  let hours = n `div` 60
-      minutes = n `mod` 60
-  in show hours <> "h " <> show minutes <> "m"
+  let hours = abs n `div` 60
+      minutes = abs n `mod` 60
+      sgn = if n < 0 then "-" else ""
+  in sgn <> show hours <> "h " <> show minutes <> "m"

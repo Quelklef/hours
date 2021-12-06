@@ -12,9 +12,11 @@ exports.isToday = t0 => () => {
 };
 
 exports.parseMinutes_f = str => {
-  const match = str.match(/^(?:([0-9]+)h ?)?(?:([0-9]+)m)?$/);
+  const match = str.match(/^(-?)(?:([0-9]+)h ?)?(?:([0-9]+)m)?$/);
   if (match === null) return null;
-  return parseInt(match[1] || '0') * 60 + parseInt(match[2] || '0');
+  const sgn = !!match[1] ? -1 : +1;
+  const mag = parseInt(match[2] || '0')*60 + parseInt(match[3] || '0');
+  return sgn * mag;
 };
 
 exports.printMillis = ms =>
