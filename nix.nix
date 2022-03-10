@@ -8,7 +8,7 @@ purs-nix =
   import
     (builtins.fetchGit
        { url = "https://github.com/ursi/purs-nix.git";
-         rev = "b05de5ddf8318bc87b6820a95d414140ed8cc203";
+         rev = "3ace179e8b2b118a6d3791d44d3d6634e7d89eab";
        }
     ) { inherit system; };
 
